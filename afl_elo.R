@@ -1,5 +1,5 @@
 rm(list = ls())
-setwd("/Users/admin/R/AFL")
+setwd("~admin/R/AFL-teams-elo-rating")
 
 library(tidyverse)
 library(magrittr)
@@ -7,9 +7,11 @@ library(lubridate)
 
 # Global vars
 
-k_value <- 1000
-elo_start <- 100
-restrict_matches <- 100
+elo_start <- 1000
+k_value <- 50
+
+# Set to NA if you want to run all 
+restrict_matches <- NA
 
 # Get data
 
@@ -61,10 +63,6 @@ results %<>%
 
 starting_date <- as.Date("2009-06-17")
 weekdays(starting_date)
-results$round <- NA
-results$days_from_start <- NA
-results$weeks_from_start <- NA
-results$years_from_start <- NA
 
 # Add season id
 
@@ -122,6 +120,8 @@ for (i in seq_along(teams)) {
     add_elo_cols(results, teams[[i]],"_elo_expected_score")
   results <-
     add_elo_cols(results, teams[[i]],"_elo_actual_score")
+  results <-
+    add_elo_cols(results, teams[[i]],"_elo_chart")
 }
 
 # Add starting elo values
@@ -138,7 +138,7 @@ results %<>%
 
 elo_col_refs <- 
   colnames(results) %>% 
-  str_detect(.,"_elo_original") %>%
+  str_detect(.,"_elo_original|_elo_chart") %>%
   which()
 
 for (i in elo_col_refs) {
@@ -271,6 +271,9 @@ update_elo_at_date <- function(team_name, matchid, home_or_away) {
                      k = k_value,
                      my_elo_actual_score ,
                      my_elo_expected_score)
+  
+  results[[matchid, paste0(my_team_name, "_elo_chart")]] <<- 
+    results[[matchid, paste0(my_team_name, "_elo_original")]]
 
 }
    
@@ -300,8 +303,7 @@ for (r in seq(from=2,to=length(results$date))) {
   # Progress bar
   
   progress <- round((r / length(results$date))*100,2) 
-  print(r)
-  #print(progress)
+  print(progress)
   
 }
 
@@ -348,24 +350,22 @@ percent_correct <-
 
 print(paste0(percent_correct," per cent correct"))
 
-# Chart elos
+save(results,file = "data/results_with_elos.RData")
+
+seasons <- results %>%
+  group_by(season_id) %>%
+  slice(1) %>%
+  mutate(year = year(date)) %>%
+  select(season_id,year)
+
+# Chart 2017 Season
 
 results %>%
-#  filter(!(is.na(date))) %>%
-  filter(date > as.Date("2017-01-01")) %>%
-  filter(date < as.Date("2018-01-01")) %>%
-  select(date,west_coast_elo_original, western_bulldogs_elo_original, richmond_elo_original, st_kilda_elo_original, sydney_elo_original, gold_coast_elo_original, melbourne_elo_original, port_adelaide_elo_original, carlton_elo_original, geelong_elo_original, fremantle_elo_original, brisbane_elo_original,collingwood_elo_original, north_melbourne_elo_original, adelaide_elo_original, gws_giants_elo_original, hawthorn_elo_original, essendon_elo_original) %>%
+  filter(season_id == 9) %>%
+  select(date,west_coast_elo_chart, western_bulldogs_elo_chart, richmond_elo_chart, st_kilda_elo_chart, sydney_elo_chart, gold_coast_elo_chart, melbourne_elo_chart, port_adelaide_elo_chart, carlton_elo_chart, geelong_elo_chart, fremantle_elo_chart, brisbane_elo_chart,collingwood_elo_chart, north_melbourne_elo_chart, adelaide_elo_chart, gws_giants_elo_chart, hawthorn_elo_chart, essendon_elo_chart) %>%
   gather(key,value,-date) %>%
+  filter(!is.na(value)) %>%
   ggplot(aes(x=date,y=value,color=key)) +
   geom_point(alpha=0.5) +
-  geom_line()
-
-results %>%
-#  filter(!(is.na(date))) %>%
-  filter(date > as.Date("2017-01-01")) %>%
-  filter(date < as.Date("2018-01-01")) %>%
-  select(date,west_coast_elo_original) %>%
-  gather(key,value,-date) %>%
-  ggplot(aes(x=date,y=value,color=key)) +
-  geom_point(alpha=0.5) +
-  geom_line()
+  geom_line() +
+  ggtitle("2017 Season")
