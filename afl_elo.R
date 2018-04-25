@@ -173,8 +173,8 @@ calc_elo_updated <- function(my_elo, k, my_elo_actual_score, my_elo_expected_sco
   my_elo + k * (my_elo_actual_score - my_elo_expected_score)
 }
 
-results$home_elo <- NA
-results$away_elo <- NA
+results$home_prematch_elo <- NA
+results$away_prematch_elo <- NA
 
 update_elo_at_date <- function(team_name, matchid, home_or_away) {
 
@@ -282,13 +282,13 @@ update_elo_at_date <- function(team_name, matchid, home_or_away) {
   
   if (home_or_away == "home") {
     
-    results[[matchid, "home_elo"]] <<- 
-      results[[matchid, paste0(my_team_name, "_elo_postmatch")]]
+    results[[matchid, "home_prematch_elo"]] <<- 
+      results[[matchid, paste0(my_team_name, "_elo_prematch")]]
     
   } else if (home_or_away == "away") {
     
-    results[[matchid, "away_elo"]] <<- 
-      results[[matchid, paste0(my_team_name, "_elo_postmatch")]]
+    results[[matchid, "away_prematch_elo"]] <<- 
+      results[[matchid, paste0(my_team_name, "_elo_prematch")]]
     
   }
 }
@@ -367,13 +367,6 @@ for (r in seq(from = 2, to = length(results$date))) {
   
 }
 
-percent_correct <- 
-  round(((sum(results$elo_prematch_prediction_correct,na.rm=TRUE) / length(results$elo_prematch_prediction_correct)) * 100 ),1)
-
-print(paste0(percent_correct," per cent correct"))
-
-save(results,file = "data/results_with_elos.RData")
-
 seasons <- results %>%
   group_by(season_id) %>%
   slice(1) %>%
@@ -414,4 +407,13 @@ results %>%
   geom_point(alpha=0.5) +
   geom_line() +
   ggtitle("2018 Season")
+
+# Accuracy 
+
+percent_correct <- 
+  round(((sum(results$elo_prematch_prediction_correct,na.rm=TRUE) / length(results$elo_prematch_prediction_correct)) * 100 ),1)
+
+print(paste0(percent_correct," per cent correct"))
+
+save(results,file = "data/results_with_elos.RData")
 
