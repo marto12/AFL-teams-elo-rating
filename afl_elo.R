@@ -10,7 +10,7 @@ library(lubridate)
 elo_start <- 1000
 k_value <- 50
 
-# Set to NA if you want to run all 
+# Set to NA if you want to run for all games 
 restrict_matches <- NA
 
 # Get data
@@ -111,15 +111,19 @@ add_elo_cols <-
 
 for (i in seq_along(teams)) {
   results <-
-    add_elo_cols(results, teams[[i]],"_elo_original")
+    add_elo_cols(results, teams[[i]],"_elo_prematch")
   results <-
-    add_elo_cols(results, teams[[i]],"_elo_logscale")
+    add_elo_cols(results, teams[[i]],"_elo_postmatch")
+  results <-
+    add_elo_cols(results, teams[[i]],"_elo_prematch_logscale")
   results <-
     add_elo_cols(results, teams[[i]],"_elo_expected_score")
   results <-
     add_elo_cols(results, teams[[i]],"_elo_actual_score")
   results <-
-    add_elo_cols(results, teams[[i]],"_elo_chart")
+    add_elo_cols(results, teams[[i]],"_elo_prematch_chart")
+  results <-
+    add_elo_cols(results, teams[[i]],"_elo_postmatch_chart")
 }
 
 # Add starting elo values
@@ -136,7 +140,7 @@ results %<>%
 
 elo_col_refs <- 
   colnames(results) %>% 
-  str_detect(.,"_elo_original|_elo_chart") %>%
+  str_detect(.,"_elo_prematch|_elo_prematch_chart|_elo_postmatch|_elo_postmatch_chart") %>%
   which()
 
 for (i in elo_col_refs) {
@@ -145,14 +149,14 @@ for (i in elo_col_refs) {
 
 # Functions to update elos
 
-calc_elo_logscale <- function(elo) {
+calc_elo_prematch_logscale <- function(elo) {
   10 ^ ((elo) / 400)
 }
 
 calc_elo_expected_score <- function(my_elo, their_elo) {
-  my_elo_logscale <- calc_elo_logscale(my_elo)
-  their_elo_logscale <- calc_elo_logscale(their_elo)
-  my_elo_logscale / (my_elo_logscale + their_elo_logscale)
+  my_elo_prematch_logscale <- calc_elo_prematch_logscale(my_elo)
+  their_elo_prematch_logscale <- calc_elo_prematch_logscale(their_elo)
+  my_elo_prematch_logscale / (my_elo_prematch_logscale + their_elo_prematch_logscale)
 }
 
 calc_elo_actual_score <- function(my_score, their_score) {
@@ -168,6 +172,9 @@ calc_elo_actual_score <- function(my_score, their_score) {
 calc_elo_updated <- function(my_elo, k, my_elo_actual_score, my_elo_expected_score) {
   my_elo + k * (my_elo_actual_score - my_elo_expected_score)
 }
+
+results$home_elo <- NA
+results$away_elo <- NA
 
 update_elo_at_date <- function(team_name, matchid, home_or_away) {
 
@@ -242,10 +249,10 @@ update_elo_at_date <- function(team_name, matchid, home_or_away) {
   }
   
   my_elo_previous <-
-    results[[(matchid - 1), paste0(my_team_name, "_elo_original")]]
+    results[[(matchid - 1), paste0(my_team_name, "_elo_postmatch")]]
   
   their_elo_previous <-
-     results[[(matchid - 1), paste0(their_team_name, "_elo_original")]]
+     results[[(matchid - 1), paste0(their_team_name, "_elo_postmatch")]]
   
   my_elo_expected_score <-
     calc_elo_expected_score(my_elo_previous, their_elo_previous)
@@ -255,8 +262,8 @@ update_elo_at_date <- function(team_name, matchid, home_or_away) {
   
   # Assign to results data frame
 
-  results[[matchid, paste0(my_team_name, "_elo_logscale")]] <<-
-    calc_elo_logscale(my_elo_previous)
+  results[[matchid, paste0(my_team_name, "_elo_prematch_logscale")]] <<-
+    calc_elo_prematch_logscale(my_elo_previous)
   
   results[[matchid, paste0(my_team_name, "_elo_expected_score")]] <<-
     my_elo_expected_score
@@ -264,15 +271,26 @@ update_elo_at_date <- function(team_name, matchid, home_or_away) {
   results[[matchid, paste0(my_team_name, "_elo_actual_score")]] <<-
     my_elo_actual_score
   
-  results[[matchid, paste0(my_team_name, "_elo_original")]] <<-
+  results[[matchid, paste0(my_team_name, "_elo_postmatch")]] <<-
     calc_elo_updated(my_elo_previous,
                      k = k_value,
                      my_elo_actual_score ,
                      my_elo_expected_score)
   
-  results[[matchid, paste0(my_team_name, "_elo_chart")]] <<- 
-    results[[matchid, paste0(my_team_name, "_elo_original")]]
-
+  results[[matchid, paste0(my_team_name, "_elo_postmatch_chart")]] <<- 
+    results[[matchid, paste0(my_team_name, "_elo_postmatch")]]
+  
+  if (home_or_away == "home") {
+    
+    results[[matchid, "home_elo"]] <<- 
+      results[[matchid, paste0(my_team_name, "_elo_postmatch")]]
+    
+  } else if (home_or_away == "away") {
+    
+    results[[matchid, "away_elo"]] <<- 
+      results[[matchid, paste0(my_team_name, "_elo_postmatch")]]
+    
+  }
 }
    
 # Fill in all elo columns
@@ -285,8 +303,11 @@ for (r in seq(from=2,to=length(results$date))) {
     
     team_i <- teams[[t]] 
     
-    results[[r, paste0(team_i, "_elo_original")]] <- 
-      results[[(r-1), paste0(team_i, "_elo_original")]]
+    results[[r, paste0(team_i, "_elo_prematch")]] <- 
+      results[[(r-1), paste0(team_i, "_elo_postmatch")]]
+    
+    results[[r, paste0(team_i, "_elo_postmatch")]] <- 
+      results[[(r-1), paste0(team_i, "_elo_postmatch")]]
     
   }
   
@@ -307,16 +328,17 @@ for (r in seq(from=2,to=length(results$date))) {
 
 # Predictions based on elo
 
-predict_winner_from_elo <- function(match_id, team1, team2) {
+predict_winner_from_elo <- function(matchid, team1, team2) {
   
-  team1_elo <- results[[match_id, paste0(team1, "_elo_original")]]
-  team2_elo <- results[[match_id, paste0(team2, "_elo_original")]]
+  team1_elo <- results[[matchid, paste0(team1, "_elo_prematch")]]
+  team2_elo <- results[[matchid, paste0(team2, "_elo_prematch")]]
   
-  if (team1_elo > team2_elo) {
-    team1
-  } else if (team2_elo > team1_elo) {
+  if (team1_elo < team2_elo) {
     team2
-  }
+  } else {
+    team1
+    # In a draw of elos, choose team 1
+  }  
   
 }
 
@@ -324,27 +346,29 @@ predict_winner_from_elo <- function(match_id, team1, team2) {
 
 results %<>%
   mutate(
-    elo_prematchid_prediction = NA,
-    elo_prematchid_prediction_correct = NA
+    elo_prematch_prediction = NA,
+    elo_prematch_prediction_correct = NA
   )
 
 for (r in seq(from = 2, to = length(results$date))) {
+  
+  # Get name of teams playing
   team1 <- results[[r, "home_team"]]
   team2 <- results[[r, "away_team"]]
   
-  results[[r, "elo_prematchid_prediction"]] <-
+  results[[r, "elo_prematch_prediction"]] <-
     predict_winner_from_elo(r, team1, team2)
   
-  if (results[[r, "elo_prematchid_prediction"]] == results[[r, "winner"]]) {
-    results[[r, "elo_prematchid_prediction_correct"]] <- TRUE
+  if (results[[r, "elo_prematch_prediction"]] == results[[r, "winner"]]) {
+    results[[r, "elo_prematch_prediction_correct"]] <- TRUE
   } else {
-    results[[r, "elo_prematchid_prediction_correct"]] <- FALSE
+    results[[r, "elo_prematch_prediction_correct"]] <- FALSE
   }
   
 }
 
 percent_correct <- 
-  round(((sum(results$elo_prematchid_prediction_correct,na.rm=TRUE) / length(results$elo_prematchid_prediction_correct)) * 100 ),1)
+  round(((sum(results$elo_prematch_prediction_correct,na.rm=TRUE) / length(results$elo_prematch_prediction_correct)) * 100 ),1)
 
 print(paste0(percent_correct," per cent correct"))
 
@@ -356,11 +380,22 @@ seasons <- results %>%
   mutate(year = year(date)) %>%
   select(season_id,year)
 
+# Chart All Seasons
+
+results %>%
+  select(date,west_coast_elo_postmatch_chart, western_bulldogs_elo_postmatch_chart, richmond_elo_postmatch_chart, st_kilda_elo_postmatch_chart, sydney_elo_postmatch_chart, melbourne_elo_postmatch_chart, port_adelaide_elo_postmatch_chart, carlton_elo_postmatch_chart, geelong_elo_postmatch_chart, fremantle_elo_postmatch_chart, brisbane_elo_postmatch_chart,collingwood_elo_postmatch_chart, north_melbourne_elo_postmatch_chart, adelaide_elo_postmatch_chart, hawthorn_elo_postmatch_chart, essendon_elo_postmatch_chart) %>%
+  gather(key,value,-date) %>%
+  filter(!is.na(value)) %>%
+  ggplot(aes(x=date,y=value,color=key)) +
+  geom_point(alpha=0.5) +
+  geom_line() +
+  ggtitle("All Seasons")
+
 # Chart 2017 Season
 
 results %>%
   filter(season_id == 9) %>%
-  select(date,west_coast_elo_chart, western_bulldogs_elo_chart, richmond_elo_chart, st_kilda_elo_chart, sydney_elo_chart, gold_coast_elo_chart, melbourne_elo_chart, port_adelaide_elo_chart, carlton_elo_chart, geelong_elo_chart, fremantle_elo_chart, brisbane_elo_chart,collingwood_elo_chart, north_melbourne_elo_chart, adelaide_elo_chart, gws_giants_elo_chart, hawthorn_elo_chart, essendon_elo_chart) %>%
+  select(date,west_coast_elo_postmatch_chart, western_bulldogs_elo_postmatch_chart, richmond_elo_postmatch_chart, st_kilda_elo_postmatch_chart, sydney_elo_postmatch_chart, gold_coast_elo_postmatch_chart, melbourne_elo_postmatch_chart, port_adelaide_elo_postmatch_chart, carlton_elo_postmatch_chart, geelong_elo_postmatch_chart, fremantle_elo_postmatch_chart, brisbane_elo_postmatch_chart,collingwood_elo_postmatch_chart, north_melbourne_elo_postmatch_chart, adelaide_elo_postmatch_chart, gws_giants_elo_postmatch_chart, hawthorn_elo_postmatch_chart, essendon_elo_postmatch_chart) %>%
   gather(key,value,-date) %>%
   filter(!is.na(value)) %>%
   ggplot(aes(x=date,y=value,color=key)) +
@@ -372,10 +407,11 @@ results %>%
 
 results %>%
   filter(season_id == 10) %>%
-  select(date,west_coast_elo_chart, western_bulldogs_elo_chart, richmond_elo_chart, st_kilda_elo_chart, sydney_elo_chart, gold_coast_elo_chart, melbourne_elo_chart, port_adelaide_elo_chart, carlton_elo_chart, geelong_elo_chart, fremantle_elo_chart, brisbane_elo_chart,collingwood_elo_chart, north_melbourne_elo_chart, adelaide_elo_chart, gws_giants_elo_chart, hawthorn_elo_chart, essendon_elo_chart) %>%
+  select(date,west_coast_elo_postmatch_chart, western_bulldogs_elo_postmatch_chart, richmond_elo_postmatch_chart, st_kilda_elo_postmatch_chart, sydney_elo_postmatch_chart, gold_coast_elo_postmatch_chart, melbourne_elo_postmatch_chart, port_adelaide_elo_postmatch_chart, carlton_elo_postmatch_chart, geelong_elo_postmatch_chart, fremantle_elo_postmatch_chart, brisbane_elo_postmatch_chart,collingwood_elo_postmatch_chart, north_melbourne_elo_postmatch_chart, adelaide_elo_postmatch_chart, gws_giants_elo_postmatch_chart, hawthorn_elo_postmatch_chart, essendon_elo_postmatch_chart) %>%
   gather(key,value,-date) %>%
   filter(!is.na(value)) %>%
   ggplot(aes(x=date,y=value,color=key)) +
   geom_point(alpha=0.5) +
   geom_line() +
   ggtitle("2018 Season")
+
