@@ -47,15 +47,13 @@ results %<>%
   arrange(date) %>% 
   mutate(
     margin = home_score - away_score,
-    winner = case_when(margin > 0 ~ home_team,
-                       margin < 0 ~ home_team,
-                       margin == 0 ~ "draw"),
     home_team_pretty = home_team,
     away_team_pretty = away_team,
-    winner_pretty = winner,
     home_team = home_team %>% str_to_lower() %>% str_replace(.," ","_"),
     away_team = away_team %>% str_to_lower() %>% str_replace(.," ","_"),
-    winner = winner %>% str_to_lower() %>% str_replace(.," ","_"),
+    winner = case_when(margin > 0 ~ home_team,
+                       margin < 0 ~ away_team,
+                       margin == 0 ~ "draw"),
     weekday = weekdays(as.Date(date))
   ) 
 
@@ -369,3 +367,15 @@ results %>%
   geom_point(alpha=0.5) +
   geom_line() +
   ggtitle("2017 Season")
+
+# Chart 2018 Season
+
+results %>%
+  filter(season_id == 10) %>%
+  select(date,west_coast_elo_chart, western_bulldogs_elo_chart, richmond_elo_chart, st_kilda_elo_chart, sydney_elo_chart, gold_coast_elo_chart, melbourne_elo_chart, port_adelaide_elo_chart, carlton_elo_chart, geelong_elo_chart, fremantle_elo_chart, brisbane_elo_chart,collingwood_elo_chart, north_melbourne_elo_chart, adelaide_elo_chart, gws_giants_elo_chart, hawthorn_elo_chart, essendon_elo_chart) %>%
+  gather(key,value,-date) %>%
+  filter(!is.na(value)) %>%
+  ggplot(aes(x=date,y=value,color=key)) +
+  geom_point(alpha=0.5) +
+  geom_line() +
+  ggtitle("2018 Season")
